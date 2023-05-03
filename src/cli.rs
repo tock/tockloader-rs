@@ -1,4 +1,4 @@
-use clap::{arg, crate_version, Command, value_parser};
+use clap::{arg, crate_version, value_parser, Command};
 
 /// Create the [command](clap::Command) object which will handle all of the command line arguments.
 pub fn make_cli() -> Command {

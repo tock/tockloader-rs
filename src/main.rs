@@ -16,7 +16,7 @@ async fn main() -> tokio_serial::Result<()> {
         Some(("listen", sub_matches)) => {
             let port = sub_matches.get_one::<String>("port").unwrap();
             let baud_rate = *sub_matches.get_one::<u32>("baud-rate").unwrap();
-            
+
             println!("Got the listen subcommand");
             let stream = open_port(port.to_string(), baud_rate)?;
             run_terminal(stream).await;
