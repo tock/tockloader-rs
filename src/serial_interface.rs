@@ -24,7 +24,10 @@ impl Decoder for LineCodec {
         // TODO: Note that this can fail if we try to decode in the middle of a multi-byte UTF-8 Character.
         // We could wait for more output, or use this <https://doc.rust-lang.org/stable/core/str/struct.Utf8Error.html#method.valid_up_to>
         let result = match str::from_utf8(src) {
-            Ok(s) => Ok(Some(s.to_string())),
+            Ok(s) => {
+                let output = s.replace('\n', "\r\n");
+                Ok(Some(output))
+            }
             Err(_) => Err(io::Error::new(io::ErrorKind::Other, "Invalid String")),
         };
         src.clear();
@@ -90,7 +93,6 @@ pub async fn write_to_serial(
             println!("Session aborted");
             break;
         }
-
         // println!("Sending {} | {}", buf, buf as u8);
         writer.send(buf.into()).await.expect("BBBBBB");
     }
