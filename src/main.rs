@@ -1,6 +1,7 @@
 mod cli;
 mod serial_interface;
 use cli::make_cli;
+use serial_interface::open_first_available_port;
 
 use crate::serial_interface::{open_port, run_terminal};
 
@@ -14,11 +15,12 @@ async fn main() -> tokio_serial::Result<()> {
 
     match matches.subcommand() {
         Some(("listen", sub_matches)) => {
-            let port = sub_matches.get_one::<String>("port").unwrap();
             let baud_rate = *sub_matches.get_one::<u32>("baud-rate").unwrap();
+            let stream = match sub_matches.get_one::<String>("port") {
+                Some(port) => open_port(port.to_string(), baud_rate)?,
+                None => open_first_available_port(baud_rate)?,
+            };
 
-            println!("Got the listen subcommand");
-            let stream = open_port(port.to_string(), baud_rate)?;
             run_terminal(stream).await;
         }
         // If only the "--debug" flag is set, then this branch is executed

@@ -44,6 +44,35 @@ impl Encoder<String> for LineCodec {
     }
 }
 
+pub fn open_first_available_port(baud_rate: u32) -> tokio_serial::Result<SerialStream> {
+    let ports = tokio_serial::available_ports()?;
+
+    for p in ports {
+        // For whatever reason, the returend ports are listed under the "/sys/class/tty/<port>" directory.
+        // While it does identify the right port, the result doesn't actually point to the device.
+        // As such, we'll try to use the name of the port with the "/dev/" path
+
+        let port_path: String = if p.port_name.contains("tty") {
+            match p.port_name.split('/').last() {
+                Some(port_name) => format!("/dev/{}", port_name),
+                None => p.port_name,
+            }
+        } else {
+            p.port_name
+        };
+
+        match open_port(port_path.clone(), baud_rate) {
+            Ok(stream) => return Ok(stream),
+            Err(_) => println!("Failed to open port {}.", port_path),
+        }
+    }
+
+    Err(tokio_serial::Error::new(
+        tokio_serial::ErrorKind::Io(io::ErrorKind::NotConnected),
+        "Couldn't open any of the available ports.",
+    ))
+}
+
 pub fn open_port(path: String, baud_rate: u32) -> tokio_serial::Result<SerialStream> {
     // Is it async? It can't be awaited...
     // TODO: What if we don't know the port? We need to copy over the implemenntation from the python version
@@ -81,7 +110,7 @@ pub async fn write_to_serial(
     let term = Term::stdout();
 
     loop {
-        let buf = match term.read_char() {
+        let key = match term.read_key() {
             Ok(c) => c,
             Err(e) => {
                 eprintln!("Read error: {e}");
@@ -89,12 +118,37 @@ pub async fn write_to_serial(
             }
         };
 
-        if buf as u8 == 0x03 {
-            println!("Session aborted");
-            break;
+        let buf: Option<String> = match key {
+            console::Key::Unknown => todo!(),
+            console::Key::UnknownEscSeq(_) => todo!(),
+            console::Key::ArrowLeft => Some("\u{1B}[D".into()),
+            console::Key::ArrowRight => Some("\u{1B}[C".into()),
+            console::Key::ArrowUp => Some("\u{1B}[A".into()),
+            console::Key::ArrowDown => Some("\u{1B}[B".into()),
+            console::Key::Enter => Some("\n".into()),
+            console::Key::Escape => None,
+            console::Key::Backspace => Some("\x08".into()),
+            console::Key::Home => Some("\u{1B}[H".into()),
+            console::Key::End => Some("\u{1B}[F".into()),
+            console::Key::Tab => Some("\t".into()),
+            console::Key::BackTab => Some("\t".into()),
+            console::Key::Alt => None,
+            console::Key::Del => Some("\x7f".into()),
+            console::Key::Shift => None,
+            console::Key::Insert => None,
+            console::Key::PageUp => None,
+            console::Key::PageDown => None,
+            console::Key::Char(c) => Some(c.into()),
+            _ => todo!(),
+        };
+
+        if let Some(c) = buf {
+            println!("Sending {}", c);
+            writer
+                .send(c.into())
+                .await
+                .expect("Could not send message.");
         }
-        // println!("Sending {} | {}", buf, buf as u8);
-        writer.send(buf.into()).await.expect("BBBBBB");
     }
     // loop {
     //     let mut buffer = String::new();
