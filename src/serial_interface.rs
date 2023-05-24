@@ -1,7 +1,9 @@
 use futures::stream::{SplitSink, SplitStream, StreamExt};
 use futures::SinkExt;
+use std::error::Error;
 use std::io::Write;
 use std::{io, str};
+
 use tokio_util::codec::{Decoder, Encoder, Framed};
 
 use bytes::{BufMut, BytesMut};
@@ -81,50 +83,66 @@ pub fn open_port(path: String, baud_rate: u32) -> tokio_serial::Result<SerialStr
 
 pub async fn run_terminal(stream: SerialStream) {
     let (writer, reader) = LineCodec.framed(stream).split();
-    let a = tokio::spawn(async move {
-        read_from_serial(reader).await;
+    let read_handle = tokio::spawn(async move {
+        if read_from_serial(reader).await.is_err() {
+            eprintln!("Connection closed due to error.");
+            Err(())
+        } else {
+            Ok(())
+        }
     });
-    tokio::spawn(async move {
-        write_to_serial(writer).await;
+    let write_handle = tokio::spawn(async move {
+        if write_to_serial(writer).await.is_err() {
+            eprintln!("Connection closed due to error.");
+        }
     });
 
-    a.await.unwrap();
+    tokio::select! {
+        result = read_handle => {
+            // The write handle cannot be aborrted because of the blocking task spawned in it.
+            // As such, I think we are pretty much safe to forcefully exit at this point.
+            match result {
+                Ok(_) => std::process::exit(0),
+                Err(_) => std::process::exit(1),
+            }
+        }
+        _ = write_handle => {}
+    }
 }
 
-pub async fn read_from_serial(mut reader: SplitStream<Framed<SerialStream, LineCodec>>) {
+pub async fn read_from_serial(
+    mut reader: SplitStream<Framed<SerialStream, LineCodec>>,
+) -> Result<(), Box<dyn Error>> {
     // TODO: What if there is another instance of tockloader open? Check the python implementation
 
-    // TODO: Spawn this into its own task, so that we may read and write at the same time.
-    // TODO: Can we hijack CTRL+C so that we can exit cleanly?
     while let Some(line_result) = reader.next().await {
-        let line = line_result.expect("Failed to read line");
+        let line = match line_result {
+            Ok(it) => it,
+            Err(err) => {
+                eprint!("Failed to read string. Error: {:?}", err);
+                return Err(Box::new(err));
+            }
+        };
         print!("{}", line);
+
         // We need to flush the buffer because the "tock>" prompt does not have a newline.
         io::stdout().flush().unwrap();
     }
+
+    Ok(())
 }
 
 pub async fn write_to_serial(
     mut writer: SplitSink<Framed<SerialStream, LineCodec>, std::string::String>,
-) {
+) -> Result<(), Box<dyn Error>> {
     loop {
-        let console_input = tokio::task::spawn_blocking( move || {
-            match Term::stdout().read_key() {
-                Ok(c) => Some(c),
-                Err(e) => {
-                    eprintln!("Read error: {e}");
-                    None
-            }
-        }}).await.unwrap();
-        
-        let key = match console_input {
-            Some(c) => c,
-            None => break,
-        };
+        let console_input = tokio::task::spawn_blocking(move || Term::stdout().read_key()).await?;
 
-        let buf: Option<String> = match key {
-            console::Key::Unknown => todo!(),
-            console::Key::UnknownEscSeq(_) => todo!(),
+        let key = console_input?;
+
+        let send_buffer: Option<String> = match key {
+            console::Key::Unknown => None,
+            console::Key::UnknownEscSeq(_) => None,
             console::Key::ArrowLeft => Some("\u{1B}[D".into()),
             console::Key::ArrowRight => Some("\u{1B}[C".into()),
             console::Key::ArrowUp => Some("\u{1B}[A".into()),
@@ -146,20 +164,17 @@ pub async fn write_to_serial(
             _ => todo!(),
         };
 
-        if let Some(c) = buf {
-            // println!("Sending {}", c);
-            writer
-                .send(c.into())
-                .await
-                .expect("Could not send message.");
+        if let Some(buffer) = send_buffer {
+            if let Err(err) = writer.send(buffer.clone()).await {
+                eprintln!(
+                    "Error writing to serial. Buffer {}. Error: {:?} ",
+                    buffer, err
+                );
+                return Err(Box::new(err));
+            }
         }
-
-        // tokio::time::sleep(std::time::Duration::from_millis(1)).await;
     }
-    // loop {
-    //     let mut buffer = String::new();
-    //     let _ = io::stdin().read_line(&mut buffer);
-    //     writer.send(buffer).await.expect("AAAaaaa");
-    //     writer.flush().await.expect("BBBBBBbb");
-    // }
+
+    // TODO: handle CTRL+C
+    // Ok(())
 }
