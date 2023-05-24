@@ -107,15 +107,19 @@ pub async fn read_from_serial(mut reader: SplitStream<Framed<SerialStream, LineC
 pub async fn write_to_serial(
     mut writer: SplitSink<Framed<SerialStream, LineCodec>, std::string::String>,
 ) {
-    let term = Term::stdout();
-
     loop {
-        let key = match term.read_key() {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("Read error: {e}");
-                break;
+        let console_input = tokio::task::spawn_blocking( move || {
+            match Term::stdout().read_key() {
+                Ok(c) => Some(c),
+                Err(e) => {
+                    eprintln!("Read error: {e}");
+                    None
             }
+        }}).await.unwrap();
+        
+        let key = match console_input {
+            Some(c) => c,
+            None => break,
         };
 
         let buf: Option<String> = match key {
@@ -143,12 +147,14 @@ pub async fn write_to_serial(
         };
 
         if let Some(c) = buf {
-            println!("Sending {}", c);
+            // println!("Sending {}", c);
             writer
                 .send(c.into())
                 .await
                 .expect("Could not send message.");
         }
+
+        // tokio::time::sleep(std::time::Duration::from_millis(1)).await;
     }
     // loop {
     //     let mut buffer = String::new();
