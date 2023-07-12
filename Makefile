@@ -17,3 +17,5 @@ ci-job-clippy:
 ci-runner-github: ci-job-format ci-job-clippy
 	@echo "Running cargo check..."
 	@cargo check
+	@echo "Running tests..."
+	@cargo test
