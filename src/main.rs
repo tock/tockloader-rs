@@ -4,6 +4,8 @@ use cli::make_cli;
 fn main() {
     let matches = make_cli().get_matches();
 
+    println!("{}", tbf_parser::add(1, 2));
+
     if matches.get_flag("debug") {
         println!("Debug mode enabled");
     }
