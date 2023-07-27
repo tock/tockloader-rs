@@ -5,7 +5,6 @@
 // Copyright Tock Contributors 2022.
 // ========================
 
-
 //! Types and Data Structures for TBFs.
 
 use core::convert::TryInto;
