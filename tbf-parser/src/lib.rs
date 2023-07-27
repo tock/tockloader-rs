@@ -1,28 +1,16 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+// Adapted from tock-tbf (https://github.com/tock/tock)
+// === ORIGINAL LICENSE ===
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+// ========================
 
+//! Tock Binary Format (TBF) header parsing library.
 
-#[cfg(feature = "std")]
-pub fn add(left: usize, right: usize) -> usize {
-    let a = [left, right].to_vec();
-    let mut sum = 1;
-    for item in a {
-        sum += item
-    }
-    return sum
-}
+// Parsing the headers does not require any unsafe operations.
+#![forbid(unsafe_code)]
+#![no_std]
 
-#[cfg(not(feature = "std"))]
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+pub mod parse;
+#[allow(dead_code)] // Some fields not read on device, but read when creating headers
+pub mod types;
