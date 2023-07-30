@@ -36,7 +36,7 @@ macro_rules! align4 {
 /// we can skip over it and check for the next app.
 /// - Err(InitialTbfParseError::InvalidHeader(app_length))
 pub fn parse_tbf_header_lengths(
-    app: &'static [u8; 8],
+    app: &[u8; 8],
 ) -> Result<(u16, u16, u32), types::InitialTbfParseError> {
     // Version is the first 16 bits of the app TBF contents. We need this to
     // correctly parse the other lengths.
@@ -81,7 +81,7 @@ pub fn parse_tbf_header_lengths(
 /// should use the `parse_tbf_header_lengths()` function to determine this
 /// length to create the correct sized slice.
 pub fn parse_tbf_header(
-    header: &'static [u8],
+    header: &[u8],
     version: u16,
 ) -> Result<types::TbfHeader, types::TbfParseError> {
     match version {

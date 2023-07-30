@@ -662,11 +662,11 @@ pub enum CommandPermissions {
 /// four since we need to statically know the length of the array to store in
 /// this type.
 #[derive(Clone, Copy, Debug)]
-pub struct TbfHeaderV2 {
+pub struct TbfHeaderV2<'a> {
     pub(crate) base: TbfHeaderV2Base,
     pub(crate) main: Option<TbfHeaderV2Main>,
     pub(crate) program: Option<TbfHeaderV2Program>,
-    pub(crate) package_name: Option<&'static str>,
+    pub(crate) package_name: Option<&'a str>,
     pub(crate) writeable_regions: Option<[Option<TbfHeaderV2WriteableFlashRegion>; 4]>,
     pub(crate) fixed_addresses: Option<TbfHeaderV2FixedAddresses>,
     pub(crate) permissions: Option<TbfHeaderV2Permissions<8>>,
@@ -681,12 +681,12 @@ pub struct TbfHeaderV2 {
 /// The kernel can also use this header to keep persistent state about
 /// the application.
 #[derive(Debug)]
-pub enum TbfHeader {
-    TbfHeaderV2(TbfHeaderV2),
+pub enum TbfHeader<'a> {
+    TbfHeaderV2(TbfHeaderV2<'a>),
     Padding(TbfHeaderV2Base),
 }
 
-impl TbfHeader {
+impl TbfHeader<'_> {
     /// Return the length of the header.
     pub fn length(&self) -> u16 {
         match *self {
@@ -783,7 +783,7 @@ impl TbfHeader {
     }
 
     /// Get the name of the app.
-    pub fn get_package_name(&self) -> Option<&'static str> {
+    pub fn get_package_name(&self) -> Option<&str> {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => hd.package_name,
             _ => None,
