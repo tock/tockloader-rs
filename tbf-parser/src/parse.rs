@@ -315,7 +315,7 @@ pub fn parse_tbf_header(
 }
 
 pub fn parse_tbf_footer(
-    footers: &'static [u8],
+    footers: &[u8],
 ) -> Result<(types::TbfFooterV2Credentials, u32), types::TbfParseError> {
     let mut remaining = footers;
     let tlv_header: types::TbfTlv = remaining.try_into()?;

@@ -256,17 +256,17 @@ pub enum TbfFooterV2CredentialsType {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct TbfFooterV2Credentials {
+pub struct TbfFooterV2Credentials<'a> {
     format: TbfFooterV2CredentialsType,
-    data: &'static [u8],
+    data: &'a [u8],
 }
 
-impl TbfFooterV2Credentials {
+impl TbfFooterV2Credentials<'_> {
     pub fn format(&self) -> TbfFooterV2CredentialsType {
         self.format
     }
 
-    pub fn data(&self) -> &'static [u8] {
+    pub fn data(&self) -> &[u8] {
         self.data
     }
 }
@@ -604,10 +604,10 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2KernelVersion {
     }
 }
 
-impl core::convert::TryFrom<&'static [u8]> for TbfFooterV2Credentials {
+impl<'b, 'a: 'b> core::convert::TryFrom<&'a [u8]> for TbfFooterV2Credentials<'b> {
     type Error = TbfParseError;
 
-    fn try_from(b: &'static [u8]) -> Result<TbfFooterV2Credentials, Self::Error> {
+    fn try_from(b: &'a [u8]) -> Result<TbfFooterV2Credentials<'b>, Self::Error> {
         let format = u32::from_le_bytes(
             b.get(0..4)
                 .ok_or(TbfParseError::InternalError)?
