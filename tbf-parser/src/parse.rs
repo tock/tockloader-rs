@@ -124,7 +124,7 @@ pub fn parse_tbf_header(
 
             // If there is nothing left in the header then this is just a
             // padding "app" between two other apps.
-            if remaining.len() == 0 {
+            if remaining.is_empty() {
                 // Just padding.
                 Ok(types::TbfHeader::Padding(tbf_header_base))
             } else {
@@ -145,7 +145,7 @@ pub fn parse_tbf_header(
                 let mut kernel_version: Option<types::TbfHeaderV2KernelVersion> = None;
 
                 // Iterate the remainder of the header looking for TLV entries.
-                while remaining.len() > 0 {
+                while !remaining.is_empty() {
                     // Get the T and L portions of the next header (if it is
                     // there).
                     let tlv_header: types::TbfTlv = remaining
@@ -217,8 +217,10 @@ pub fn parse_tbf_header(
                                 }
 
                                 // Convert and store each wfr.
-                                for i in 0..number_regions {
-                                    wfr_pointer[i] = Some(
+                                for (i, region) in
+                                    wfr_pointer.iter_mut().enumerate().take(number_regions)
+                                {
+                                    *region = Some(
                                         wfr_slice
                                             .get(i * wfr_len..(i + 1) * wfr_len)
                                             .ok_or(types::TbfParseError::NotEnoughFlash)?

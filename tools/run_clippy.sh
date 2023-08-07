@@ -11,6 +11,6 @@ if ! rustup component list | grep 'clippy.*(installed)' -q; then
 fi
 
 # TODO: What arguments do we want to pass to clippy?
-CLIPPY_ARGS="-D warnings"
+CLIPPY_ARGS="-D warnings -A clippy::redundant_field_names"
 
 cargo clippy -- $CLIPPY_ARGS

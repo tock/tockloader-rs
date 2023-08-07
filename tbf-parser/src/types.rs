@@ -500,7 +500,7 @@ impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2Permissions<L>
             let end = start + size_of::<TbfHeaderDriverPermission>();
             if let Some(perm) = perms.get_mut(i) {
                 *perm = b
-                    .get(start..end as usize)
+                    .get(start..end)
                     .ok_or(TbfParseError::NotEnoughFlash)?
                     .try_into()?;
             } else {
@@ -541,7 +541,7 @@ impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2StoragePermiss
             read_end = start + size_of::<u32>();
             if let Some(read_id) = read_ids.get_mut(i) {
                 *read_id = u32::from_le_bytes(
-                    b.get(start..read_end as usize)
+                    b.get(start..read_end)
                         .ok_or(TbfParseError::NotEnoughFlash)?
                         .try_into()?,
                 );
@@ -564,7 +564,7 @@ impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2StoragePermiss
             let modify_end = start + size_of::<u32>();
             if let Some(modify_id) = modify_ids.get_mut(i) {
                 *modify_id = u32::from_le_bytes(
-                    b.get(start..modify_end as usize)
+                    b.get(start..modify_end)
                         .ok_or(TbfParseError::NotEnoughFlash)?
                         .try_into()?,
                 );
@@ -681,6 +681,9 @@ pub struct TbfHeaderV2<'a> {
 /// The kernel can also use this header to keep persistent state about
 /// the application.
 #[derive(Debug)]
+// Clippy suggests we box TbfHeaderV2. We can't really do that, since
+// we are runnning under no_std, and I don't think it's that big of a issue.
+#[allow(clippy::large_enum_variant)]
 pub enum TbfHeader<'a> {
     TbfHeaderV2(TbfHeaderV2<'a>),
     Padding(TbfHeaderV2Base),
@@ -900,10 +903,9 @@ impl TbfHeader<'_> {
     /// Returns `None` if a `read_ids` is not included.
     pub fn get_storage_read_ids(&self) -> Option<(usize, [u32; NUM_STORAGE_PERMISSIONS])> {
         match self {
-            TbfHeader::TbfHeaderV2(hd) => match hd.storage_permissions {
-                Some(permissions) => Some((permissions.read_length.into(), permissions.read_ids)),
-                _ => None,
-            },
+            TbfHeader::TbfHeaderV2(hd) => hd
+                .storage_permissions
+                .map(|permissions| (permissions.read_length.into(), permissions.read_ids)),
             _ => None,
         }
     }
@@ -912,12 +914,9 @@ impl TbfHeader<'_> {
     /// Returns `None` if a `access_ids` is not included.
     pub fn get_storage_modify_ids(&self) -> Option<(usize, [u32; NUM_STORAGE_PERMISSIONS])> {
         match self {
-            TbfHeader::TbfHeaderV2(hd) => match hd.storage_permissions {
-                Some(permissions) => {
-                    Some((permissions.modify_length.into(), permissions.modify_ids))
-                }
-                _ => None,
-            },
+            TbfHeader::TbfHeaderV2(hd) => hd
+                .storage_permissions
+                .map(|permissions| (permissions.modify_length.into(), permissions.modify_ids)),
             _ => None,
         }
     }
@@ -926,10 +925,9 @@ impl TbfHeader<'_> {
     /// Returns `None` if the kernel compatibility header is not included.
     pub fn get_kernel_version(&self) -> Option<(u16, u16)> {
         match self {
-            TbfHeader::TbfHeaderV2(hd) => match hd.kernel_version {
-                Some(kernel_version) => Some((kernel_version.major, kernel_version.minor)),
-                _ => None,
-            },
+            TbfHeader::TbfHeaderV2(hd) => hd
+                .kernel_version
+                .map(|kernel_version| (kernel_version.major, kernel_version.minor)),
             _ => None,
         }
     }
@@ -941,7 +939,7 @@ impl TbfHeader<'_> {
         match self {
             TbfHeader::TbfHeaderV2(hd) => hd
                 .program
-                .map_or(hd.base.total_size as u32, |p| p.binary_end_offset),
+                .map_or(hd.base.total_size, |p| p.binary_end_offset),
             _ => 0,
         }
     }
