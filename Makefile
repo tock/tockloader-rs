@@ -19,3 +19,4 @@ ci-runner-github: ci-job-format ci-job-clippy
 	@cargo check
 	@echo "Running tests..."
 	@cargo test
+	@cargo test --workspace
