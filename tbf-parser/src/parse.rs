@@ -9,7 +9,7 @@
 
 use core::convert::TryInto;
 use core::iter::Iterator;
-use core::{mem, str};
+use core::mem;
 
 use crate::types;
 
@@ -136,7 +136,7 @@ pub fn parse_tbf_header(
                 let mut program_pointer: Option<types::TbfHeaderV2Program> = None;
                 let mut wfr_pointer: [Option<types::TbfHeaderV2WriteableFlashRegion>; 4] =
                     Default::default();
-                let mut app_name_str = "";
+                let mut package_name_pointer: Option<types::TbfHeaderV2PackageName<64>> = None;
                 let mut fixed_address_pointer: Option<types::TbfHeaderV2FixedAddresses> = None;
                 let mut permissions_pointer: Option<types::TbfHeaderV2Permissions<8>> = None;
                 let mut storage_permissions_pointer: Option<
@@ -239,11 +239,7 @@ pub fn parse_tbf_header(
                                 .get(0..tlv_header.length as usize)
                                 .ok_or(types::TbfParseError::NotEnoughFlash)?;
 
-                            str::from_utf8(name_buf)
-                                .map(|name_str| {
-                                    app_name_str = name_str;
-                                })
-                                .or(Err(types::TbfParseError::BadProcessName))?;
+                            package_name_pointer = Some(name_buf.try_into()?);
                         }
 
                         types::TbfHeaderTypes::TbfHeaderFixedAddresses => {
@@ -301,7 +297,7 @@ pub fn parse_tbf_header(
                     base: tbf_header_base,
                     main: main_pointer,
                     program: program_pointer,
-                    package_name: Some(app_name_str),
+                    package_name: package_name_pointer,
                     writeable_regions: Some(wfr_pointer),
                     fixed_addresses: fixed_address_pointer,
                     permissions: permissions_pointer,

@@ -8,8 +8,8 @@
 //! Types and Data Structures for TBFs.
 
 use core::convert::TryInto;
-use core::fmt;
 use core::mem::size_of;
+use core::{fmt, str};
 
 /// We only support up to a fixed number of storage permissions for each of read
 /// and modify. This simplification enables us to use fixed sized buffers.
@@ -74,6 +74,10 @@ pub enum TbfParseError {
     /// too long for Tock to parse.
     /// This can be fixed by increasing the number in `TbfHeaderV2`.
     TooManyEntries(usize),
+
+    /// The package name is too long for Tock to parse.
+    /// Consider a shorter name, or increasing the maximum size.
+    PackageNameTooLong,
 }
 
 impl From<core::array::TryFromSliceError> for TbfParseError {
@@ -107,6 +111,7 @@ impl fmt::Debug for TbfParseError {
                     tipe
                 )
             }
+            TbfParseError::PackageNameTooLong => write!(f, "The package name is too long."),
         }
     }
 }
@@ -179,6 +184,12 @@ pub struct TbfHeaderV2Program {
     minimum_ram_size: u32,
     binary_end_offset: u32,
     version: u32,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct TbfHeaderV2PackageName<const L: usize> {
+    size: u32,
+    buffer: [u8; L],
 }
 
 /// Writeable flash regions only need an offset and size.
@@ -255,19 +266,59 @@ pub enum TbfFooterV2CredentialsType {
     SHA512 = 5,
 }
 
+/// Reference: https://github.com/tock/tock/blob/master/doc/reference/trd-appid.md#52-credentials-footer
 #[derive(Clone, Copy, Debug)]
-pub struct TbfFooterV2Credentials<'a> {
-    format: TbfFooterV2CredentialsType,
-    data: &'a [u8],
+#[allow(clippy::large_enum_variant)]
+pub enum TbfFooterV2Credentials {
+    Reserved(u32),
+    Rsa3072Key(TbfFooterV2RSA<384>),
+    Rsa4096Key(TbfFooterV2RSA<512>),
+    SHA256(TbfFooterV2SHA<32>),
+    SHA384(TbfFooterV2SHA<48>),
+    SHA512(TbfFooterV2SHA<64>),
 }
 
-impl TbfFooterV2Credentials<'_> {
-    pub fn format(&self) -> TbfFooterV2CredentialsType {
-        self.format
+#[derive(Clone, Copy, Debug)]
+pub struct TbfFooterV2SHA<const L: usize> {
+    hash: [u8; L],
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct TbfFooterV2RSA<const L: usize> {
+    public_key: [u8; L],
+    signature: [u8; L],
+}
+
+impl<const L: usize> TbfFooterV2SHA<L> {
+    pub fn get_format(&self) -> Result<TbfFooterV2CredentialsType, TbfParseError> {
+        match L {
+            32 => Ok(TbfFooterV2CredentialsType::SHA256),
+            48 => Ok(TbfFooterV2CredentialsType::SHA384),
+            64 => Ok(TbfFooterV2CredentialsType::SHA512),
+            _ => Err(TbfParseError::InternalError),
+        }
     }
 
-    pub fn data(&self) -> &[u8] {
-        self.data
+    pub fn get_hash(&self) -> &[u8; L] {
+        &self.hash
+    }
+}
+
+impl<const L: usize> TbfFooterV2RSA<L> {
+    pub fn get_format(&self) -> Result<TbfFooterV2CredentialsType, TbfParseError> {
+        match L {
+            384 => Ok(TbfFooterV2CredentialsType::Rsa3072Key),
+            512 => Ok(TbfFooterV2CredentialsType::Rsa4096Key),
+            _ => Err(TbfParseError::InternalError),
+        }
+    }
+
+    pub fn get_public_key(&self) -> &[u8; L] {
+        &self.public_key
+    }
+
+    pub fn get_signature(&self) -> &[u8; L] {
+        &self.signature
     }
 }
 
@@ -410,6 +461,28 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2Program {
                     .ok_or(TbfParseError::InternalError)?
                     .try_into()?,
             ),
+        })
+    }
+}
+
+impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2PackageName<L> {
+    type Error = TbfParseError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        if value.len() > L {
+            return Err(TbfParseError::PackageNameTooLong);
+        }
+
+        if str::from_utf8(value).is_err() {
+            return Err(TbfParseError::BadProcessName);
+        }
+
+        let mut buffer = [0u8; L];
+        buffer[..value.len()].copy_from_slice(value);
+
+        Ok(TbfHeaderV2PackageName {
+            size: value.len() as u32,
+            buffer: buffer,
         })
     }
 }
@@ -604,11 +677,11 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2KernelVersion {
     }
 }
 
-impl<'b, 'a: 'b> core::convert::TryFrom<&'a [u8]> for TbfFooterV2Credentials<'b> {
+impl core::convert::TryFrom<&[u8]> for TbfFooterV2Credentials {
     type Error = TbfParseError;
 
-    fn try_from(b: &'a [u8]) -> Result<TbfFooterV2Credentials<'b>, Self::Error> {
-        let format = u32::from_le_bytes(
+    fn try_from(b: &[u8]) -> Result<TbfFooterV2Credentials, Self::Error> {
+        let format: u32 = u32::from_le_bytes(
             b.get(0..4)
                 .ok_or(TbfParseError::InternalError)?
                 .try_into()?,
@@ -632,13 +705,51 @@ impl<'b, 'a: 'b> core::convert::TryFrom<&'a [u8]> for TbfFooterV2Credentials<'b>
             TbfFooterV2CredentialsType::SHA384 => 48,
             TbfFooterV2CredentialsType::SHA512 => 64,
         };
-        let data = &b
+
+        let data = b
             .get(4..(length + 4))
             .ok_or(TbfParseError::NotEnoughFlash)?;
-        Ok(TbfFooterV2Credentials {
-            format: ftype,
-            data: data,
-        })
+
+        match ftype {
+            TbfFooterV2CredentialsType::Reserved => {
+                Ok(TbfFooterV2Credentials::Reserved(b.len() as u32))
+            }
+            TbfFooterV2CredentialsType::SHA256 => {
+                Ok(TbfFooterV2Credentials::SHA256(TbfFooterV2SHA {
+                    hash: data.try_into().map_err(|_| TbfParseError::InternalError)?,
+                }))
+            }
+            TbfFooterV2CredentialsType::SHA384 => {
+                Ok(TbfFooterV2Credentials::SHA384(TbfFooterV2SHA {
+                    hash: data.try_into().map_err(|_| TbfParseError::InternalError)?,
+                }))
+            }
+            TbfFooterV2CredentialsType::SHA512 => {
+                Ok(TbfFooterV2Credentials::SHA512(TbfFooterV2SHA {
+                    hash: data.try_into().map_err(|_| TbfParseError::InternalError)?,
+                }))
+            }
+            TbfFooterV2CredentialsType::Rsa3072Key => {
+                Ok(TbfFooterV2Credentials::Rsa3072Key(TbfFooterV2RSA {
+                    public_key: data[0..length / 2]
+                        .try_into()
+                        .map_err(|_| TbfParseError::InternalError)?,
+                    signature: data[length / 2..]
+                        .try_into()
+                        .map_err(|_| TbfParseError::InternalError)?,
+                }))
+            }
+            TbfFooterV2CredentialsType::Rsa4096Key => {
+                Ok(TbfFooterV2Credentials::Rsa4096Key(TbfFooterV2RSA {
+                    public_key: data[0..length / 2]
+                        .try_into()
+                        .map_err(|_| TbfParseError::InternalError)?,
+                    signature: data[length / 2..]
+                        .try_into()
+                        .map_err(|_| TbfParseError::InternalError)?,
+                }))
+            }
+        }
     }
 }
 
@@ -662,11 +773,11 @@ pub enum CommandPermissions {
 /// four since we need to statically know the length of the array to store in
 /// this type.
 #[derive(Clone, Copy, Debug)]
-pub struct TbfHeaderV2<'a> {
+pub struct TbfHeaderV2 {
     pub(crate) base: TbfHeaderV2Base,
     pub(crate) main: Option<TbfHeaderV2Main>,
     pub(crate) program: Option<TbfHeaderV2Program>,
-    pub(crate) package_name: Option<&'a str>,
+    pub(crate) package_name: Option<TbfHeaderV2PackageName<64>>,
     pub(crate) writeable_regions: Option<[Option<TbfHeaderV2WriteableFlashRegion>; 4]>,
     pub(crate) fixed_addresses: Option<TbfHeaderV2FixedAddresses>,
     pub(crate) permissions: Option<TbfHeaderV2Permissions<8>>,
@@ -684,12 +795,12 @@ pub struct TbfHeaderV2<'a> {
 // Clippy suggests we box TbfHeaderV2. We can't really do that, since
 // we are runnning under no_std, and I don't think it's that big of a issue.
 #[allow(clippy::large_enum_variant)]
-pub enum TbfHeader<'a> {
-    TbfHeaderV2(TbfHeaderV2<'a>),
+pub enum TbfHeader {
+    TbfHeaderV2(TbfHeaderV2),
     Padding(TbfHeaderV2Base),
 }
 
-impl TbfHeader<'_> {
+impl TbfHeader {
     /// Return the length of the header.
     pub fn length(&self) -> u16 {
         match *self {
@@ -786,9 +897,13 @@ impl TbfHeader<'_> {
     }
 
     /// Get the name of the app.
+    // Note: We could return Result instead. So far, no editing methods have been implemented, and when the PackageName struct is created
+    // the str::from_utf8 function is ran beforehand to make sure the bytes are valid UTF-8.
     pub fn get_package_name(&self) -> Option<&str> {
-        match *self {
-            TbfHeader::TbfHeaderV2(hd) => hd.package_name,
+        match self {
+            TbfHeader::TbfHeaderV2(hd) => hd.package_name.as_ref().map(|name| {
+                str::from_utf8(&name.buffer[..name.size as usize]).expect("Package name is not valid UTF8. Conversion should have been checked beforehand.")
+            }),
             _ => None,
         }
     }
