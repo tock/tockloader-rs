@@ -266,19 +266,59 @@ pub enum TbfFooterV2CredentialsType {
     SHA512 = 5,
 }
 
+/// Reference: https://github.com/tock/tock/blob/master/doc/reference/trd-appid.md#52-credentials-footer
 #[derive(Clone, Copy, Debug)]
-pub struct TbfFooterV2Credentials<'a> {
-    format: TbfFooterV2CredentialsType,
-    data: &'a [u8],
+#[allow(clippy::large_enum_variant)]
+pub enum TbfFooterV2Credentials {
+    Reserved(u32),
+    Rsa3072Key(TbfFooterV2RSA<384>),
+    Rsa4096Key(TbfFooterV2RSA<512>),
+    SHA256(TbfFooterV2SHA<32>),
+    SHA384(TbfFooterV2SHA<48>),
+    SHA512(TbfFooterV2SHA<64>),
 }
 
-impl TbfFooterV2Credentials<'_> {
-    pub fn format(&self) -> TbfFooterV2CredentialsType {
-        self.format
+#[derive(Clone, Copy, Debug)]
+pub struct TbfFooterV2SHA<const L: usize> {
+    hash: [u8; L],
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct TbfFooterV2RSA<const L: usize> {
+    public_key: [u8; L],
+    signature: [u8; L],
+}
+
+impl<const L: usize> TbfFooterV2SHA<L> {
+    pub fn get_format(&self) -> Result<TbfFooterV2CredentialsType, TbfParseError> {
+        match L {
+            32 => Ok(TbfFooterV2CredentialsType::SHA256),
+            48 => Ok(TbfFooterV2CredentialsType::SHA384),
+            64 => Ok(TbfFooterV2CredentialsType::SHA512),
+            _ => Err(TbfParseError::InternalError),
+        }
     }
 
-    pub fn data(&self) -> &[u8] {
-        self.data
+    pub fn get_hash(&self) -> &[u8; L] {
+        &self.hash
+    }
+}
+
+impl<const L: usize> TbfFooterV2RSA<L> {
+    pub fn get_format(&self) -> Result<TbfFooterV2CredentialsType, TbfParseError> {
+        match L {
+            384 => Ok(TbfFooterV2CredentialsType::Rsa3072Key),
+            512 => Ok(TbfFooterV2CredentialsType::Rsa4096Key),
+            _ => Err(TbfParseError::InternalError),
+        }
+    }
+
+    pub fn get_public_key(&self) -> &[u8; L] {
+        &self.public_key
+    }
+
+    pub fn get_signature(&self) -> &[u8; L] {
+        &self.signature
     }
 }
 
@@ -637,11 +677,11 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2KernelVersion {
     }
 }
 
-impl<'b, 'a: 'b> core::convert::TryFrom<&'a [u8]> for TbfFooterV2Credentials<'b> {
+impl core::convert::TryFrom<&[u8]> for TbfFooterV2Credentials {
     type Error = TbfParseError;
 
-    fn try_from(b: &'a [u8]) -> Result<TbfFooterV2Credentials<'b>, Self::Error> {
-        let format = u32::from_le_bytes(
+    fn try_from(b: &[u8]) -> Result<TbfFooterV2Credentials, Self::Error> {
+        let format: u32 = u32::from_le_bytes(
             b.get(0..4)
                 .ok_or(TbfParseError::InternalError)?
                 .try_into()?,
@@ -665,13 +705,51 @@ impl<'b, 'a: 'b> core::convert::TryFrom<&'a [u8]> for TbfFooterV2Credentials<'b>
             TbfFooterV2CredentialsType::SHA384 => 48,
             TbfFooterV2CredentialsType::SHA512 => 64,
         };
-        let data = &b
+
+        let data = b
             .get(4..(length + 4))
             .ok_or(TbfParseError::NotEnoughFlash)?;
-        Ok(TbfFooterV2Credentials {
-            format: ftype,
-            data: data,
-        })
+
+        match ftype {
+            TbfFooterV2CredentialsType::Reserved => {
+                Ok(TbfFooterV2Credentials::Reserved(b.len() as u32))
+            }
+            TbfFooterV2CredentialsType::SHA256 => {
+                Ok(TbfFooterV2Credentials::SHA256(TbfFooterV2SHA {
+                    hash: data.try_into().map_err(|_| TbfParseError::InternalError)?,
+                }))
+            }
+            TbfFooterV2CredentialsType::SHA384 => {
+                Ok(TbfFooterV2Credentials::SHA384(TbfFooterV2SHA {
+                    hash: data.try_into().map_err(|_| TbfParseError::InternalError)?,
+                }))
+            }
+            TbfFooterV2CredentialsType::SHA512 => {
+                Ok(TbfFooterV2Credentials::SHA512(TbfFooterV2SHA {
+                    hash: data.try_into().map_err(|_| TbfParseError::InternalError)?,
+                }))
+            }
+            TbfFooterV2CredentialsType::Rsa3072Key => {
+                Ok(TbfFooterV2Credentials::Rsa3072Key(TbfFooterV2RSA {
+                    public_key: data[0..length / 2]
+                        .try_into()
+                        .map_err(|_| TbfParseError::InternalError)?,
+                    signature: data[length / 2..]
+                        .try_into()
+                        .map_err(|_| TbfParseError::InternalError)?,
+                }))
+            }
+            TbfFooterV2CredentialsType::Rsa4096Key => {
+                Ok(TbfFooterV2Credentials::Rsa4096Key(TbfFooterV2RSA {
+                    public_key: data[0..length / 2]
+                        .try_into()
+                        .map_err(|_| TbfParseError::InternalError)?,
+                    signature: data[length / 2..]
+                        .try_into()
+                        .map_err(|_| TbfParseError::InternalError)?,
+                }))
+            }
+        }
     }
 }
 

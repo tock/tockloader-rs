@@ -1,4 +1,7 @@
-use tbf_parser::parse::*;
+use tbf_parser::{
+    parse::*,
+    types::{TbfFooterV2Credentials, TbfFooterV2CredentialsType},
+};
 
 #[test]
 fn simple_tbf() {
@@ -50,5 +53,23 @@ fn footer_sha256() {
         214u8, 17, 81, 32, 51, 178, 249, 35, 161, 33, 109, 184, 195, 46, 238, 158, 141, 54, 63, 94,
         60, 245, 50, 228, 239, 107, 231, 127, 220, 158, 77, 160,
     ];
-    assert_eq!(footer.data(), correct_sha256);
+    if let TbfFooterV2Credentials::SHA256(creds) = footer {
+        assert_eq!(
+            creds.get_format().unwrap(),
+            TbfFooterV2CredentialsType::SHA256
+        );
+        assert_eq!(creds.get_hash(), &correct_sha256);
+    } else {
+        panic!("Footer is not of type SHA256!");
+    }
+
+    let second_footer_offset = binary_offset + footer_size as usize + 4;
+    let (footer, footer_size) = parse_tbf_footer(&buffer[second_footer_offset..]).unwrap();
+    dbg!(footer);
+    assert_eq!(footer_size, 2312);
+    if let TbfFooterV2Credentials::Reserved(padding) = footer {
+        assert_eq!(padding, 2312);
+    } else {
+        panic!("Footer is not of type 'Reserved'!");
+    }
 }
