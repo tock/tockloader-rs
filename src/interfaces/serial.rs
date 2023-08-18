@@ -1,5 +1,5 @@
-use crate::errors::TockloaderError;
 use super::board_interface::BoardInterface;
+use crate::errors::TockloaderError;
 
 pub struct SerialInterface {}
 

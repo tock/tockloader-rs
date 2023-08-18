@@ -1,4 +1,4 @@
 pub mod board_interface;
-pub mod serial;
-pub mod openocd;
 pub mod jlink;
+pub mod openocd;
+pub mod serial;
