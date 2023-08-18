@@ -1,4 +1,6 @@
 mod cli;
+mod errors;
+mod interfaces;
 use cli::make_cli;
 
 fn main() {
