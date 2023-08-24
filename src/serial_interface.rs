@@ -6,34 +6,54 @@ use std::{io, str};
 
 use tokio_util::codec::{Decoder, Encoder, Framed};
 
-use bytes::{BufMut, BytesMut};
+use bytes::{BufMut, BytesMut, Buf};
 use console::Term;
 use tokio_serial::SerialPortBuilderExt;
 use tokio_serial::SerialStream;
 
 pub struct LineCodec;
 
+impl LineCodec {
+    fn clean_input(input: &str ) -> String {
+        input.replace('\n', "\r\n")
+    }
+}
+
 impl Decoder for LineCodec {
     type Item = String;
     type Error = io::Error;
 
-    fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        if src.is_empty() {
+    fn decode(&mut self, source: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+        if source.is_empty() {
             return Ok(None);
         }
 
         // Read everything you can, and interpret it as a string.
-        // TODO: Note that this can fail if we try to decode in the middle of a multi-byte UTF-8 Character.
-        // We could wait for more output, or use this <https://doc.rust-lang.org/stable/core/str/struct.Utf8Error.html#method.valid_up_to>
-        let result = match str::from_utf8(src) {
-            Ok(s) => {
-                let output = s.replace('\n', "\r\n");
+        match str::from_utf8(&source) {
+            Ok(utf8_string) => {
+                let output = LineCodec::clean_input(utf8_string);
+                source.clear();
                 Ok(Some(output))
             }
-            Err(_) => Err(io::Error::new(io::ErrorKind::Other, "Invalid String")),
-        };
-        src.clear();
-        result
+            Err(error) => {
+                let index = error.valid_up_to();
+
+                if index == 0 {
+                    // Returning Some("") makes it so no other bytes are read in. I have no idea why.
+                    // If you find a reason why, please edit this comment.
+                    return Ok(None);
+                }
+
+                match str::from_utf8(&source[..index]) {
+                    Ok(utf8_string) => {
+                        let output = LineCodec::clean_input(utf8_string);
+                        source.advance(index);
+                        Ok(Some(output))
+                    },
+                    Err(_) => Err(io::Error::new(io::ErrorKind::InvalidData, format!("Couldn't parse input as UTF8. Last valid index: {}. Buffer: {:?}",index,source))),
+                }
+            }
+        }
     }
 }
 
