@@ -6,7 +6,7 @@ use std::{io, str};
 
 use tokio_util::codec::{Decoder, Encoder, Framed};
 
-use bytes::{BufMut, BytesMut, Buf};
+use bytes::{Buf, BufMut, BytesMut};
 use console::Term;
 use tokio_serial::SerialPortBuilderExt;
 use tokio_serial::SerialStream;
@@ -14,7 +14,7 @@ use tokio_serial::SerialStream;
 pub struct LineCodec;
 
 impl LineCodec {
-    fn clean_input(input: &str ) -> String {
+    fn clean_input(input: &str) -> String {
         input.replace('\n', "\r\n")
     }
 }
@@ -29,7 +29,7 @@ impl Decoder for LineCodec {
         }
 
         // Read everything you can, and interpret it as a string.
-        match str::from_utf8(&source) {
+        match str::from_utf8(source) {
             Ok(utf8_string) => {
                 let output = LineCodec::clean_input(utf8_string);
                 source.clear();
@@ -49,8 +49,14 @@ impl Decoder for LineCodec {
                         let output = LineCodec::clean_input(utf8_string);
                         source.advance(index);
                         Ok(Some(output))
-                    },
-                    Err(_) => Err(io::Error::new(io::ErrorKind::InvalidData, format!("Couldn't parse input as UTF8. Last valid index: {}. Buffer: {:?}",index,source))),
+                    }
+                    Err(_) => Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!(
+                            "Couldn't parse input as UTF8. Last valid index: {}. Buffer: {:?}",
+                            index, source
+                        ),
+                    )),
                 }
             }
         }
