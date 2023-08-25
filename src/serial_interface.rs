@@ -15,7 +15,25 @@ pub struct LineCodec;
 
 impl LineCodec {
     fn clean_input(input: &str) -> String {
-        input.replace('\n', "\r\n")
+        // Use consistent line endings for all OS versions.
+        // More so, in the newest version of the kernel a "backspace" is echoed out as
+        //
+        // <backspace><space><backspace><null><backspace><space><backspace>
+        //
+        // The <backspace> character only moves the cursor back, and does not delete. What the
+        // space does is overwrite the previous character with a seemingly empty one (space) and
+        // then moves the cursor back.
+        //
+        // In previous versiouns only these three characters were printed, but now also
+        // an null (or "End of file" byte) is also transmitted and promptly deleted.
+        // The issues appear when we can't actually delete null bytes, the actual result
+        // being two (normal) characters being deleted at once, sometimes overflowing and
+        // starting to (visually) delete the tock prompt ("tock$ ") that preceds all lines.
+        //
+        // Python's minterm  dealt with this issue by converting the null byte into
+        // Unicode code point 0x2400. This is a specific "end of file" 3-byte long character
+        // which can be deleted.
+        input.replace('\n', "\r\n").replace('\x00', "\u{2400}")
     }
 }
 
