@@ -199,7 +199,9 @@ pub async fn write_to_serial(
             console::Key::Tab => Some("\t".into()),
             console::Key::BackTab => Some("\t".into()),
             console::Key::Alt => None,
-            console::Key::Del => Some("\x7f".into()),
+            // In latest version of kernel (2023.08.25), the "del" ascii code (\x7F)
+            // is handled exactly as backspace (\x08). Proper del is this:
+            console::Key::Del => Some("\u{1B}[3~".into()),
             console::Key::Shift => None,
             console::Key::Insert => None,
             console::Key::PageUp => None,
