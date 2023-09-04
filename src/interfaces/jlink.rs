@@ -1,10 +1,4 @@
-use super::board_interface::BoardInterface;
-use crate::errors::TockloaderError;
+pub mod board_interface;
+pub mod bytes_reader;
 
 pub struct JLinkInterface {}
-
-impl BoardInterface for JLinkInterface {
-    fn open(&mut self) -> Result<(), TockloaderError> {
-        todo!()
-    }
-}
