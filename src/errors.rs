@@ -8,3 +8,5 @@ impl fmt::Display for TockloaderError {
         todo!()
     }
 }
+
+impl std::error::Error for TockloaderError {}
