@@ -6,5 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+async-trait = "0.1.73"
+bytes = "1.5.0"
 clap = { version = "4.1.1", features = ["cargo"] }
 enum_dispatch = "0.3.12"
+futures = "0.3.28"
+tokio = { version = "1.32.0", features = ["full"] }
+tokio-serial = "5.4.4"
+tokio-util = { version = "0.7.8", features = ["full"] }

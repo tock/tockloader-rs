@@ -1,4 +1,5 @@
 use crate::errors::TockloaderError;
+use async_trait::async_trait;
 use enum_dispatch::enum_dispatch;
 
 #[enum_dispatch]
@@ -7,6 +8,7 @@ pub trait BoardInterface {
 }
 
 #[enum_dispatch]
-pub trait BytesReader {
-    fn read_range(&self, start: usize, len: usize) -> Result<Vec<u8>, TockloaderError>;
+#[async_trait]
+pub trait VirtualTerminal {
+    async fn run_terminal(&mut self) -> Result<(), TockloaderError>;
 }
