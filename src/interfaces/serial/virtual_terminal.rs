@@ -5,10 +5,12 @@ use crate::errors::TockloaderError;
 use crate::interfaces::traits::VirtualTerminal;
 use crate::interfaces::SerialInterface;
 use async_trait::async_trait;
-use futures::stream::{SplitSink, SplitStream, StreamExt};
+use console::Term;
+use futures::stream::StreamExt;
 use futures::SinkExt;
-use std::str;
-use tokio_util::codec::{Decoder, Encoder, Framed};
+use std::io::Write;
+use std::{io, str};
+use tokio_util::codec::{Decoder, Encoder};
 
 struct TerminalCodec;
 
@@ -33,16 +35,20 @@ impl VirtualTerminal for SerialInterface {
             // What does it mean if .next() return None?
             while let Some(line_result) = reader.next().await {
                 print!("{}", line_result?);
+
+                // We need to flush the buffer because the "tock$" prompt does not have a newline.
+                io::stdout().flush().unwrap();
             }
 
             Ok(())
         });
 
-        let write_handle = tokio::spawn(async move {
-            // if write_to_serial(writer).await.is_err() {
-            //     eprintln!("Connection closed due to error.");
-            // }
-            todo!()
+        let write_handle: JoinHandle<Result<(), TockloaderError>> = tokio::spawn(async move {
+            loop {
+                if let Some(buffer) = get_key().await? {
+                    writer.send(buffer).await?
+                }
+            }
         });
 
         tokio::select! {
@@ -52,11 +58,47 @@ impl VirtualTerminal for SerialInterface {
                     Err(join_err) => Err(TockloaderError::JoinError(join_err)),
                 }
             }
-            _ = write_handle => {
-                unreachable!("Write handle shouldn't return, yet it did.")
+            join_result = write_handle => {
+                match join_result {
+                    Ok(write_handle_result) => write_handle_result,
+                    Err(join_err) => Err(TockloaderError::JoinError(join_err)),
+                }
             }
         }
     }
+}
+
+async fn get_key() -> Result<Option<String>, TockloaderError> {
+    let console_result = tokio::task::spawn_blocking(move || Term::stdout().read_key())
+        .await
+        .map_err(TockloaderError::JoinError)?;
+
+    // Tockloader implements From<std::io::Error>, so we don't need to use 'map_err'
+    let key = console_result?;
+
+    Ok(match key {
+        console::Key::Unknown => None,
+        console::Key::UnknownEscSeq(_) => None,
+        console::Key::ArrowLeft => Some("\u{1B}[D".into()),
+        console::Key::ArrowRight => Some("\u{1B}[C".into()),
+        console::Key::ArrowUp => Some("\u{1B}[A".into()),
+        console::Key::ArrowDown => Some("\u{1B}[B".into()),
+        console::Key::Enter => Some("\n".into()),
+        console::Key::Escape => None,
+        console::Key::Backspace => Some("\x08".into()),
+        console::Key::Home => Some("\u{1B}[H".into()),
+        console::Key::End => Some("\u{1B}[F".into()),
+        console::Key::Tab => Some("\t".into()),
+        console::Key::BackTab => Some("\t".into()),
+        console::Key::Alt => None,
+        console::Key::Del => Some("\x7f".into()),
+        console::Key::Shift => None,
+        console::Key::Insert => None,
+        console::Key::PageUp => None,
+        console::Key::PageDown => None,
+        console::Key::Char(c) => Some(c.into()),
+        _ => todo!(),
+    })
 }
 
 impl Decoder for TerminalCodec {

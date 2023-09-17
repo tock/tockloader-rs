@@ -6,7 +6,6 @@ use tokio::task::JoinError;
 pub enum TockloaderError {
     TokioSeriallError(tokio_serial::Error),
     NoPortAvailable,
-    PortClosed,
     CLIError(CLIError),
     IOError(std::io::Error),
     JoinError(JoinError),
@@ -25,9 +24,6 @@ impl fmt::Display for TockloaderError {
             }
             TockloaderError::NoPortAvailable => {
                 f.write_str("Tockloader has failed to find any open ports. If your device is plugged in, you can manually specify it using the '--port <path>' argument.")
-            },
-            TockloaderError::PortClosed => {
-                f.write_str("Unexpected error: port closed mid-operation.")
             },
             TockloaderError::CLIError(inner) => {
                 inner.fmt(f)

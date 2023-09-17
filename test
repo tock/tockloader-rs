@@ -1,0 +1,634 @@
+mod interfaces {
+    use self::{
+        jlink::JLinkInterface, openocd::OpenOCDInterface, serial::SerialInterface,
+        traits::*,
+    };
+    use crate::errors::{CLIError, TockloaderError};
+    use clap::ArgMatches;
+    use enum_dispatch::enum_dispatch;
+    pub mod jlink {
+        use clap::ArgMatches;
+        use crate::errors::TockloaderError;
+        pub mod board_interface {
+            use crate::errors::TockloaderError;
+            use crate::interfaces::traits::BoardInterface;
+            use crate::interfaces::JLinkInterface;
+            impl BoardInterface for JLinkInterface {
+                fn open(&mut self) -> Result<(), TockloaderError> {
+                    ::core::panicking::panic("not yet implemented")
+                }
+            }
+        }
+        pub mod virtual_terminal {
+            use crate::errors::TockloaderError;
+            use crate::interfaces::traits::VirtualTerminal;
+            use crate::interfaces::JLinkInterface;
+            use async_trait::async_trait;
+            impl VirtualTerminal for JLinkInterface {
+                #[allow(
+                    clippy::async_yields_async,
+                    clippy::diverging_sub_expression,
+                    clippy::let_unit_value,
+                    clippy::no_effect_underscore_binding,
+                    clippy::shadow_same,
+                    clippy::type_complexity,
+                    clippy::type_repetition_in_bounds,
+                    clippy::used_underscore_binding
+                )]
+                fn run_terminal<'life0, 'async_trait>(
+                    &'life0 mut self,
+                ) -> ::core::pin::Pin<
+                    Box<
+                        dyn ::core::future::Future<
+                            Output = Result<(), TockloaderError>,
+                        > + ::core::marker::Send + 'async_trait,
+                    >,
+                >
+                where
+                    'life0: 'async_trait,
+                    Self: 'async_trait,
+                {
+                    Box::pin(async move {
+                        if let ::core::option::Option::Some(__ret) = ::core::option::Option::None::<
+                            Result<(), TockloaderError>,
+                        > {
+                            return __ret;
+                        }
+                        let mut __self = self;
+                        let __ret: Result<(), TockloaderError> = {
+                            ::core::panicking::panic("not yet implemented")
+                        };
+                        #[allow(unreachable_code)] __ret
+                    })
+                }
+            }
+        }
+        pub struct JLinkInterface {}
+        impl JLinkInterface {
+            pub fn new(_args: &ArgMatches) -> Result<Self, TockloaderError> {
+                ::core::panicking::panic("not yet implemented")
+            }
+        }
+    }
+    pub mod openocd {
+        use clap::ArgMatches;
+        use crate::errors::TockloaderError;
+        pub mod board_interface {
+            use crate::errors::TockloaderError;
+            use crate::interfaces::traits::BoardInterface;
+            use crate::interfaces::OpenOCDInterface;
+            impl BoardInterface for OpenOCDInterface {
+                fn open(&mut self) -> Result<(), TockloaderError> {
+                    ::core::panicking::panic("not yet implemented")
+                }
+            }
+        }
+        pub mod virtual_terminal {
+            use crate::errors::TockloaderError;
+            use crate::interfaces::traits::VirtualTerminal;
+            use crate::interfaces::OpenOCDInterface;
+            use async_trait::async_trait;
+            impl VirtualTerminal for OpenOCDInterface {
+                #[allow(
+                    clippy::async_yields_async,
+                    clippy::diverging_sub_expression,
+                    clippy::let_unit_value,
+                    clippy::no_effect_underscore_binding,
+                    clippy::shadow_same,
+                    clippy::type_complexity,
+                    clippy::type_repetition_in_bounds,
+                    clippy::used_underscore_binding
+                )]
+                fn run_terminal<'life0, 'async_trait>(
+                    &'life0 mut self,
+                ) -> ::core::pin::Pin<
+                    Box<
+                        dyn ::core::future::Future<
+                            Output = Result<(), TockloaderError>,
+                        > + ::core::marker::Send + 'async_trait,
+                    >,
+                >
+                where
+                    'life0: 'async_trait,
+                    Self: 'async_trait,
+                {
+                    Box::pin(async move {
+                        if let ::core::option::Option::Some(__ret) = ::core::option::Option::None::<
+                            Result<(), TockloaderError>,
+                        > {
+                            return __ret;
+                        }
+                        let mut __self = self;
+                        let __ret: Result<(), TockloaderError> = {
+                            ::core::panicking::panic("not yet implemented")
+                        };
+                        #[allow(unreachable_code)] __ret
+                    })
+                }
+            }
+        }
+        pub struct OpenOCDInterface {}
+        impl OpenOCDInterface {
+            pub fn new(_args: &ArgMatches) -> Result<Self, TockloaderError> {
+                ::core::panicking::panic("not yet implemented")
+            }
+        }
+    }
+    pub mod serial {
+        pub mod board_interface {
+            use tokio_serial::SerialPortBuilderExt;
+            use crate::errors::TockloaderError;
+            use crate::interfaces::traits::BoardInterface;
+            use crate::interfaces::SerialInterface;
+            impl BoardInterface for SerialInterface {
+                fn open(&mut self) -> Result<(), TockloaderError> {
+                    let stream = tokio_serial::new(self.port.clone(), self.baud_rate)
+                        .open_native_async()
+                        .map_err(TockloaderError::TokioSeriallError)?;
+                    self.stream = Some(stream);
+                    Ok(())
+                }
+            }
+        }
+        pub mod virtual_terminal {
+            use bytes::{Buf, BufMut, BytesMut};
+            use tokio::task::JoinHandle;
+            use crate::errors::TockloaderError;
+            use crate::interfaces::traits::VirtualTerminal;
+            use crate::interfaces::SerialInterface;
+            use async_trait::async_trait;
+            use futures::stream::{SplitSink, SplitStream, StreamExt};
+            use futures::SinkExt;
+            use std::str;
+            use tokio_util::codec::{Decoder, Encoder, Framed};
+            struct TerminalCodec;
+            impl VirtualTerminal for SerialInterface {
+                #[allow(
+                    clippy::async_yields_async,
+                    clippy::diverging_sub_expression,
+                    clippy::let_unit_value,
+                    clippy::no_effect_underscore_binding,
+                    clippy::shadow_same,
+                    clippy::type_complexity,
+                    clippy::type_repetition_in_bounds,
+                    clippy::used_underscore_binding
+                )]
+                fn run_terminal<'life0, 'async_trait>(
+                    &'life0 mut self,
+                ) -> ::core::pin::Pin<
+                    Box<
+                        dyn ::core::future::Future<
+                            Output = Result<(), TockloaderError>,
+                        > + ::core::marker::Send + 'async_trait,
+                    >,
+                >
+                where
+                    'life0: 'async_trait,
+                    Self: 'async_trait,
+                {
+                    Box::pin(async move {
+                        if let ::core::option::Option::Some(__ret) = ::core::option::Option::None::<
+                            Result<(), TockloaderError>,
+                        > {
+                            return __ret;
+                        }
+                        let mut __self = self;
+                        let __ret: Result<(), TockloaderError> = {
+                            if __self.stream.is_none() {
+                                {
+                                    ::core::panicking::panic_fmt(
+                                        format_args!(
+                                            "internal error: entered unreachable code: {0}",
+                                            format_args!("Stream is not initialized!"),
+                                        ),
+                                    );
+                                }
+                            }
+                            let (mut writer, mut reader) = TerminalCodec
+                                .framed(
+                                    __self
+                                        .stream
+                                        .take()
+                                        .expect("SerialStream wasn't initialized"),
+                                )
+                                .split();
+                            let read_handle: JoinHandle<Result<(), TockloaderError>> = tokio::spawn(async move {
+                                while let Some(line_result) = reader.next().await {
+                                    {
+                                        ::std::io::_print(format_args!("{0}", line_result?));
+                                    };
+                                }
+                                Ok(())
+                            });
+                            let write_handle = tokio::spawn(async move {
+                                ::core::panicking::panic("not yet implemented")
+                            });
+                            {
+                                #[doc(hidden)]
+                                mod __tokio_select_util {
+                                    pub(super) enum Out<_0, _1> {
+                                        _0(_0),
+                                        _1(_1),
+                                        Disabled,
+                                    }
+                                    pub(super) type Mask = u8;
+                                }
+                                use ::tokio::macros::support::Future;
+                                use ::tokio::macros::support::Pin;
+                                use ::tokio::macros::support::Poll::{Ready, Pending};
+                                const BRANCHES: u32 = 2;
+                                let mut disabled: __tokio_select_util::Mask = Default::default();
+                                if !true {
+                                    let mask: __tokio_select_util::Mask = 1 << 0;
+                                    disabled |= mask;
+                                }
+                                if !true {
+                                    let mask: __tokio_select_util::Mask = 1 << 1;
+                                    disabled |= mask;
+                                }
+                                let mut output = {
+                                    let mut futures = (read_handle, write_handle);
+                                    let mut futures = &mut futures;
+                                    ::tokio::macros::support::poll_fn(|cx| {
+                                            let mut is_pending = false;
+                                            let start = {
+                                                ::tokio::macros::support::thread_rng_n(BRANCHES)
+                                            };
+                                            for i in 0..BRANCHES {
+                                                let branch;
+                                                #[allow(clippy::modulo_one)]
+                                                {
+                                                    branch = (start + i) % BRANCHES;
+                                                }
+                                                match branch {
+                                                    #[allow(unreachable_code)]
+                                                    0 => {
+                                                        let mask = 1 << branch;
+                                                        if disabled & mask == mask {
+                                                            continue;
+                                                        }
+                                                        let (fut, ..) = &mut *futures;
+                                                        let mut fut = unsafe { Pin::new_unchecked(fut) };
+                                                        let out = match Future::poll(fut, cx) {
+                                                            Ready(out) => out,
+                                                            Pending => {
+                                                                is_pending = true;
+                                                                continue;
+                                                            }
+                                                        };
+                                                        disabled |= mask;
+                                                        #[allow(unused_variables)] #[allow(unused_mut)]
+                                                        match &out {
+                                                            join_result => {}
+                                                            _ => continue,
+                                                        }
+                                                        return Ready(__tokio_select_util::Out::_0(out));
+                                                    }
+                                                    #[allow(unreachable_code)]
+                                                    1 => {
+                                                        let mask = 1 << branch;
+                                                        if disabled & mask == mask {
+                                                            continue;
+                                                        }
+                                                        let (_, fut, ..) = &mut *futures;
+                                                        let mut fut = unsafe { Pin::new_unchecked(fut) };
+                                                        let out = match Future::poll(fut, cx) {
+                                                            Ready(out) => out,
+                                                            Pending => {
+                                                                is_pending = true;
+                                                                continue;
+                                                            }
+                                                        };
+                                                        disabled |= mask;
+                                                        #[allow(unused_variables)] #[allow(unused_mut)]
+                                                        match &out {
+                                                            _ => {}
+                                                            _ => continue,
+                                                        }
+                                                        return Ready(__tokio_select_util::Out::_1(out));
+                                                    }
+                                                    _ => {
+                                                        ::core::panicking::panic_fmt(
+                                                            format_args!(
+                                                                "internal error: entered unreachable code: {0}",
+                                                                format_args!(
+                                                                    "reaching this means there probably is an off by one bug",
+                                                                ),
+                                                            ),
+                                                        );
+                                                    }
+                                                }
+                                            }
+                                            if is_pending {
+                                                Pending
+                                            } else {
+                                                Ready(__tokio_select_util::Out::Disabled)
+                                            }
+                                        })
+                                        .await
+                                };
+                                match output {
+                                    __tokio_select_util::Out::_0(join_result) => {
+                                        match join_result {
+                                            Ok(read_handle_result) => read_handle_result,
+                                            Err(join_err) => Err(TockloaderError::JoinError(join_err)),
+                                        }
+                                    }
+                                    __tokio_select_util::Out::_1(_) => {
+                                        ::core::panicking::panic_fmt(
+                                            format_args!(
+                                                "internal error: entered unreachable code: {0}",
+                                                format_args!("Write handle shouldn\'t return, yet it did."),
+                                            ),
+                                        );
+                                    }
+                                    __tokio_select_util::Out::Disabled => {
+                                        ::core::panicking::panic_fmt(
+                                            format_args!(
+                                                "all branches are disabled and there is no else branch",
+                                            ),
+                                        );
+                                    }
+                                    _ => {
+                                        ::core::panicking::panic_fmt(
+                                            format_args!(
+                                                "internal error: entered unreachable code: {0}",
+                                                format_args!("failed to match bind"),
+                                            ),
+                                        );
+                                    }
+                                }
+                            }
+                        };
+                        #[allow(unreachable_code)] __ret
+                    })
+                }
+            }
+            impl Decoder for TerminalCodec {
+                type Item = String;
+                type Error = TockloaderError;
+                fn decode(
+                    &mut self,
+                    source: &mut BytesMut,
+                ) -> Result<Option<Self::Item>, Self::Error> {
+                    if source.is_empty() {
+                        return Ok(None);
+                    }
+                    match str::from_utf8(source) {
+                        Ok(result_str) => {
+                            let result = result_str.to_string();
+                            source.clear();
+                            Ok(Some(result))
+                        }
+                        Err(error) => {
+                            let index = error.valid_up_to();
+                            if index == 0 {
+                                return Ok(None);
+                            }
+                            let result = str::from_utf8(&source[..index])
+                                .expect(
+                                    "UTF-8 string failed after verifying with 'valid_up_to()'",
+                                )
+                                .to_string();
+                            source.advance(index);
+                            Ok(Some(result))
+                        }
+                    }
+                }
+            }
+            impl Encoder<String> for TerminalCodec {
+                type Error = TockloaderError;
+                fn encode(
+                    &mut self,
+                    item: String,
+                    dst: &mut BytesMut,
+                ) -> Result<(), Self::Error> {
+                    dst.put(item.as_bytes());
+                    Ok(())
+                }
+            }
+        }
+        use clap::ArgMatches;
+        use tokio_serial::SerialStream;
+        use crate::errors::TockloaderError;
+        pub struct SerialInterface {
+            port: String,
+            baud_rate: u32,
+            stream: Option<SerialStream>,
+        }
+        impl SerialInterface {
+            pub fn new(args: &ArgMatches) -> Result<Self, TockloaderError> {
+                let port = if let Some(user_port) = args.get_one::<String>("port") {
+                    user_port.clone()
+                } else {
+                    let available_ports = tokio_serial::available_ports()
+                        .map_err(TockloaderError::TokioSeriallError)?;
+                    if available_ports.is_empty() {
+                        return Err(TockloaderError::NoPortAvailable);
+                    } else if available_ports.len() == 1 {
+                        clean_port_path(available_ports[0].port_name.clone())
+                    } else {
+                        {
+                            ::core::panicking::panic_fmt(
+                                format_args!(
+                                    "not yet implemented: {0}",
+                                    format_args!(
+                                        "Make user choose out of multiple available ports",
+                                    ),
+                                ),
+                            );
+                        }
+                    }
+                };
+                let baud_rate = if let Some(baud_rate) = args.get_one::<u32>("baud-rate")
+                {
+                    *baud_rate
+                } else {
+                    {
+                        ::core::panicking::panic_fmt(
+                            format_args!(
+                                "internal error: entered unreachable code: {0}",
+                                format_args!("\'--baud-rate\' should have a default value."),
+                            ),
+                        );
+                    }
+                };
+                Ok(Self {
+                    port,
+                    baud_rate,
+                    stream: None,
+                })
+            }
+        }
+        fn clean_port_path(port: String) -> String {
+            if port.contains("/sys/class/tty/") {
+                port.replace("/sys/class/tty/", "/dev/")
+            } else {
+                port
+            }
+        }
+    }
+    pub mod traits {
+        use crate::errors::TockloaderError;
+        use async_trait::async_trait;
+        use enum_dispatch::enum_dispatch;
+        pub trait BoardInterface {
+            fn open(&mut self) -> Result<(), TockloaderError>;
+        }
+        pub trait VirtualTerminal {
+            #[must_use]
+            #[allow(clippy::type_complexity, clippy::type_repetition_in_bounds)]
+            fn run_terminal<'life0, 'async_trait>(
+                &'life0 mut self,
+            ) -> ::core::pin::Pin<
+                Box<
+                    dyn ::core::future::Future<
+                        Output = Result<(), TockloaderError>,
+                    > + ::core::marker::Send + 'async_trait,
+                >,
+            >
+            where
+                'life0: 'async_trait,
+                Self: 'async_trait;
+        }
+    }
+    pub enum Interface {
+        Serial(SerialInterface),
+        OpenOCD(OpenOCDInterface),
+        JLink(JLinkInterface),
+    }
+    impl VirtualTerminal for Interface {
+        #[must_use]
+        #[allow(clippy::type_complexity, clippy::type_repetition_in_bounds)]
+        #[inline]
+        fn run_terminal<'life0, 'async_trait>(
+            &'life0 mut self,
+        ) -> ::core::pin::Pin<
+            Box<
+                dyn ::core::future::Future<
+                    Output = Result<(), TockloaderError>,
+                > + ::core::marker::Send + 'async_trait,
+            >,
+        >
+        where
+            'life0: 'async_trait,
+            Self: 'async_trait,
+        {
+            match self {
+                Interface::Serial(inner) => VirtualTerminal::run_terminal(inner),
+                Interface::OpenOCD(inner) => VirtualTerminal::run_terminal(inner),
+                Interface::JLink(inner) => VirtualTerminal::run_terminal(inner),
+            }
+        }
+    }
+    impl ::core::convert::From<SerialInterface> for Interface {
+        fn from(v: SerialInterface) -> Interface {
+            Interface::Serial(v)
+        }
+    }
+    impl ::core::convert::From<OpenOCDInterface> for Interface {
+        fn from(v: OpenOCDInterface) -> Interface {
+            Interface::OpenOCD(v)
+        }
+    }
+    impl ::core::convert::From<JLinkInterface> for Interface {
+        fn from(v: JLinkInterface) -> Interface {
+            Interface::JLink(v)
+        }
+    }
+    impl core::convert::TryInto<SerialInterface> for Interface {
+        type Error = &'static str;
+        fn try_into(
+            self,
+        ) -> ::core::result::Result<
+            SerialInterface,
+            <Self as core::convert::TryInto<SerialInterface>>::Error,
+        > {
+            match self {
+                Interface::Serial(v) => Ok(v),
+                Interface::OpenOCD(v) => {
+                    Err("Tried to convert variant OpenOCD to Serial")
+                }
+                Interface::JLink(v) => Err("Tried to convert variant JLink to Serial"),
+            }
+        }
+    }
+    impl core::convert::TryInto<OpenOCDInterface> for Interface {
+        type Error = &'static str;
+        fn try_into(
+            self,
+        ) -> ::core::result::Result<
+            OpenOCDInterface,
+            <Self as core::convert::TryInto<OpenOCDInterface>>::Error,
+        > {
+            match self {
+                Interface::OpenOCD(v) => Ok(v),
+                Interface::Serial(v) => Err("Tried to convert variant Serial to OpenOCD"),
+                Interface::JLink(v) => Err("Tried to convert variant JLink to OpenOCD"),
+            }
+        }
+    }
+    impl core::convert::TryInto<JLinkInterface> for Interface {
+        type Error = &'static str;
+        fn try_into(
+            self,
+        ) -> ::core::result::Result<
+            JLinkInterface,
+            <Self as core::convert::TryInto<JLinkInterface>>::Error,
+        > {
+            match self {
+                Interface::JLink(v) => Ok(v),
+                Interface::Serial(v) => Err("Tried to convert variant Serial to JLink"),
+                Interface::OpenOCD(v) => Err("Tried to convert variant OpenOCD to JLink"),
+            }
+        }
+    }
+    impl VirtualTerminal for Interface {
+        #[must_use]
+        #[allow(clippy::type_complexity, clippy::type_repetition_in_bounds)]
+        #[inline]
+        fn run_terminal<'life0, 'async_trait>(
+            &'life0 mut self,
+        ) -> ::core::pin::Pin<
+            Box<
+                dyn ::core::future::Future<
+                    Output = Result<(), TockloaderError>,
+                > + ::core::marker::Send + 'async_trait,
+            >,
+        >
+        where
+            'life0: 'async_trait,
+            Self: 'async_trait,
+        {
+            match self {
+                Interface::Serial(inner) => VirtualTerminal::run_terminal(inner),
+                Interface::OpenOCD(inner) => VirtualTerminal::run_terminal(inner),
+                Interface::JLink(inner) => VirtualTerminal::run_terminal(inner),
+            }
+        }
+    }
+    impl BoardInterface for Interface {
+        #[inline]
+        fn open(&mut self) -> Result<(), TockloaderError> {
+            match self {
+                Interface::Serial(inner) => BoardInterface::open(inner),
+                Interface::OpenOCD(inner) => BoardInterface::open(inner),
+                Interface::JLink(inner) => BoardInterface::open(inner),
+            }
+        }
+    }
+    pub fn build_interface(args: &ArgMatches) -> Result<Interface, TockloaderError> {
+        if args.get_flag("serial") as u8 + args.get_flag("jlink") as u8
+            + args.get_flag("openocd") as u8 > 1
+        {
+            return Err(TockloaderError::CLIError(CLIError::MultipleInterfaces));
+        }
+        if args.get_flag("serial") {
+            Ok(SerialInterface::new(args)?.into())
+        } else if args.get_flag("jlink") {
+            Ok(JLinkInterface::new(args)?.into())
+        } else {
+            Ok(OpenOCDInterface::new(args)?.into())
+        }
+    }
+}

@@ -3,7 +3,7 @@ mod errors;
 mod interfaces;
 use cli::make_cli;
 use errors::TockloaderError;
-use interfaces::{build_interface, traits::BoardInterface};
+use interfaces::{build_interface, traits::*};
 
 #[tokio::main]
 async fn main() -> Result<(), TockloaderError> {
@@ -26,7 +26,7 @@ async fn run() -> Result<(), TockloaderError> {
         Some(("listen", sub_matches)) => {
             let mut interface = build_interface(sub_matches)?;
             interface.open()?;
-            interface.run_terminal()?;
+            interface.run_terminal().await?;
         }
         // If only the "--debug" flag is set, then this branch is executed
         // Or, more likely at this stage, a subcommand hasn't been implemented yet.

@@ -9,7 +9,7 @@ pub mod serial;
 pub mod traits;
 
 #[enum_dispatch(BoardInterface)]
-#[enum_dispatch(Listener)]
+#[enum_dispatch(VirtualTerminal)]
 pub enum Interface {
     Serial(SerialInterface),
     OpenOCD(OpenOCDInterface),
