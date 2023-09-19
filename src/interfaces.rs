@@ -1,4 +1,5 @@
 use self::{jlink::JLinkInterface, openocd::OpenOCDInterface, serial::SerialInterface, traits::*};
+use crate::bootloader::attribute::Attribute;
 use crate::errors::{CLIError, TockloaderError};
 use clap::ArgMatches;
 use enum_dispatch::enum_dispatch;
@@ -10,6 +11,7 @@ pub mod traits;
 
 #[enum_dispatch(BoardInterface)]
 #[enum_dispatch(VirtualTerminal)]
+#[enum_dispatch(BootloaderInterface)]
 pub enum Interface {
     Serial(SerialInterface),
     OpenOCD(OpenOCDInterface),

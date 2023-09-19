@@ -9,6 +9,7 @@ pub enum TockloaderError {
     CLIError(CLIError),
     IOError(std::io::Error),
     JoinError(JoinError),
+    StreamClosed,
 }
 
 #[derive(Debug)]
@@ -33,6 +34,9 @@ impl fmt::Display for TockloaderError {
             },
             TockloaderError::JoinError(inner) => {
                 inner.fmt(f)
+            },
+            TockloaderError::StreamClosed => {
+                f.write_str("The serial stream unexpectedly closed.")
             },
         }
     }

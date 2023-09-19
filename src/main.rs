@@ -1,3 +1,4 @@
+mod bootloader;
 mod cli;
 mod errors;
 mod interfaces;
@@ -27,6 +28,11 @@ async fn run() -> Result<(), TockloaderError> {
             let mut interface = build_interface(sub_matches)?;
             interface.open()?;
             interface.run_terminal().await?;
+        }
+        Some(("info", sub_matches)) => {
+            let mut interface = build_interface(sub_matches)?;
+            interface.open()?;
+            dbg!(interface.enter_bootloader().await?);
         }
         // If only the "--debug" flag is set, then this branch is executed
         // Or, more likely at this stage, a subcommand hasn't been implemented yet.

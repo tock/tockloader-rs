@@ -1,4 +1,6 @@
+mod binary_codec;
 pub mod board_interface;
+pub mod bootloader_interface;
 pub mod virtual_terminal;
 
 use clap::ArgMatches;
