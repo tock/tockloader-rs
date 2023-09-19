@@ -1,15 +1,13 @@
 use super::binary_codec::BinaryCodec;
 use crate::{
-    bootloader::{
-        attribute::Attribute,
-        codes::{ESCAPE_CHAR, RESPONSE_PONG},
-    },
+    bootloader::{attribute::Attribute, codes::*},
     errors::TockloaderError,
     interfaces::traits::BootloaderInterface,
     interfaces::SerialInterface,
+    timeout,
 };
 use async_trait::async_trait;
-use futures::{SinkExt, StreamExt};
+use futures::{SinkExt, StreamExt, TryFutureExt};
 use std::time::Duration;
 use tokio_serial::SerialPort;
 use tokio_util::codec::Decoder;
@@ -99,9 +97,7 @@ impl BootloaderInterface for SerialInterface {
 
         channel.send([ESCAPE_CHAR, 0x1]).await?;
 
-        if let Ok(response) =
-            tokio::time::timeout(Duration::from_millis(1000), channel.next()).await
-        {
+        if let Ok(response) = timeout!(channel.next()).await {
             if let Some(decoder_result) = response {
                 let response = decoder_result?;
                 if response == [ESCAPE_CHAR, RESPONSE_PONG] {
@@ -117,10 +113,25 @@ impl BootloaderInterface for SerialInterface {
     }
 
     async fn sync(&mut self) -> Result<(), TockloaderError> {
-        todo!()
+        let mut channel = BinaryCodec.framed(self.stream.as_mut().unwrap());
+
+        channel.send([0x00, ESCAPE_CHAR, COMMAND_RESET]).await?;
+        Ok(())
     }
 
-    async fn get_attribute(&mut self) -> Result<Attribute, TockloaderError> {
-        todo!()
+    async fn get_attribute(&mut self, index: u8) -> Result<Attribute, TockloaderError> {
+        self.sync().await?;
+
+        let mut channel = BinaryCodec.framed(self.stream.as_mut().unwrap());
+
+        channel
+            .send([index, ESCAPE_CHAR, COMMAND_GET_ATTRIBUTE])
+            .await?;
+        if let Some(decoder_result) = timeout!(channel.next()).await? {
+            return Attribute::parse_raw(decoder_result?);
+        }
+
+        // TODO: Is this the right error to give?
+        Err(TockloaderError::BootloaderNotOpen)
     }
 }

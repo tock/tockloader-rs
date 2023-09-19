@@ -19,7 +19,7 @@ impl BootloaderInterface for JLinkInterface {
         todo!()
     }
 
-    async fn get_attribute(&mut self) -> Result<Attribute, TockloaderError> {
+    async fn get_attribute(&mut self, _index: u8) -> Result<Attribute, TockloaderError> {
         todo!()
     }
 }

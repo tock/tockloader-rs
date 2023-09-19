@@ -13,6 +13,35 @@ pub trait VirtualTerminal {
     async fn run_terminal(&mut self) -> Result<(), TockloaderError>;
 }
 
+/// This is a short-hand for tokio::time::timeout with a constant, pre-defined, timeout.
+/// The macro also maps the [Elapsed](tokio::time::error::Elapsed) error to [Timeout](TockloaderError::Timeout).
+/// Used mostly to timeout reading data from a board.
+///
+/// ## Expansion
+/// ```
+/// timeout!(channel.read())
+/// ```
+/// expands to
+/// ```
+/// tokio::time::timeout(Duration::from_millis(1000), channel.read()).map_err(|_| TockloaderError::Timeout)
+/// ```
+///
+/// ## Example
+/// ```
+/// async fn read_data() -> Option(Vec<u8>);
+/// // ...
+/// if let Some(data) = timeout!(read_data()).await? {
+///     println!("{}", data);
+/// }
+/// ```
+#[macro_export]
+macro_rules! timeout {
+    ($operation:expr) => {
+        tokio::time::timeout(Duration::from_millis(1000), $operation)
+            .map_err(|_| TockloaderError::Timeout)
+    };
+}
+
 #[async_trait]
 #[enum_dispatch]
 pub trait BootloaderInterface {
@@ -44,5 +73,5 @@ pub trait BootloaderInterface {
     async fn sync(&mut self) -> Result<(), TockloaderError>;
 
     /// TODO! Description here, what exactly is an attribute?
-    async fn get_attribute(&mut self) -> Result<Attribute, TockloaderError>;
+    async fn get_attribute(&mut self, index: u8) -> Result<Attribute, TockloaderError>;
 }

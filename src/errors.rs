@@ -10,6 +10,9 @@ pub enum TockloaderError {
     IOError(std::io::Error),
     JoinError(JoinError),
     StreamClosed,
+    Timeout,
+    BootloaderNotOpen,
+    MalformedResponse(String),
 }
 
 #[derive(Debug)]
@@ -37,6 +40,15 @@ impl fmt::Display for TockloaderError {
             },
             TockloaderError::StreamClosed => {
                 f.write_str("The serial stream unexpectedly closed.")
+            },
+            TockloaderError::Timeout => {
+                f.write_str("The operation timed out. Check if the board is still connected.")
+            },
+            TockloaderError::BootloaderNotOpen => {
+                f.write_str("The bootloader wouldn't respond. Try again.")
+            },
+            TockloaderError::MalformedResponse(explanation) => {
+                f.write_str(format!("Received corrupted or unexpected response. {}", *explanation).as_str())
             },
         }
     }
