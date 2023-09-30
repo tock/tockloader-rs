@@ -76,6 +76,8 @@ impl VirtualTerminal for SerialInterface {
         // We can move out of the mutex for similar reasons, no one else will need this reader/writer.
         let writer = Arc::into_inner(writer_arc).unwrap().into_inner();
         let reader = Arc::into_inner(reader_arc).unwrap().into_inner();
+        // Reader and Writer are from the same call, so reunite() shouldn't fail,
+        // and we can remove the "Framed" around the strean with .into_inner()
         self.stream = Some(reader.reunite(writer).unwrap().into_inner());
 
         return result;
