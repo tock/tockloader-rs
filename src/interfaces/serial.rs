@@ -20,8 +20,7 @@ impl SerialInterface {
         let port = if let Some(user_port) = args.get_one::<String>("port") {
             user_port.clone()
         } else {
-            let available_ports =
-                tokio_serial::available_ports().map_err(TockloaderError::TokioSeriallError)?;
+            let available_ports = tokio_serial::available_ports()?;
 
             if available_ports.is_empty() {
                 return Err(TockloaderError::NoPortAvailable);

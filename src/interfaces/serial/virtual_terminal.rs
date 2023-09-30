@@ -53,27 +53,18 @@ impl VirtualTerminal for SerialInterface {
 
         tokio::select! {
             join_result = read_handle => {
-                match join_result {
-                    Ok(read_handle_result) => read_handle_result,
-                    Err(join_err) => Err(TockloaderError::JoinError(join_err)),
-                }
+                join_result?
             }
             join_result = write_handle => {
-                match join_result {
-                    Ok(write_handle_result) => write_handle_result,
-                    Err(join_err) => Err(TockloaderError::JoinError(join_err)),
-                }
+                join_result?
             }
         }
     }
 }
 
 async fn get_key() -> Result<Option<String>, TockloaderError> {
-    let console_result = tokio::task::spawn_blocking(move || Term::stdout().read_key())
-        .await
-        .map_err(TockloaderError::JoinError)?;
+    let console_result = tokio::task::spawn_blocking(move || Term::stdout().read_key()).await?;
 
-    // Tockloader implements From<std::io::Error>, so we don't need to use 'map_err'
     let key = console_result?;
 
     Ok(match key {
