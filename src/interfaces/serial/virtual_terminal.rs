@@ -22,17 +22,22 @@ impl VirtualTerminal for SerialInterface {
     //     further operations.
     async fn run_terminal(&mut self) -> Result<(), TockloaderError> {
         if self.stream.is_none() {
-            unreachable!("Stream is not initialized!")
+            // Note: I'm using panic here because "unreachable!" doesn't feel appropriate
+            // This code could very well be reached if, let's say, a function
+            // unexpectedly has the side-effect of making the stream "None", even though
+            // in a release build the program should never panic from this.
+            panic!("Stream is not initialized!")
         }
 
-        let (mut writer, mut reader) = TerminalCodec
-            .framed(self.stream.take().expect("SerialStream wasn't initialized"))
-            .split();
+        let (mut writer, mut reader) = TerminalCodec.framed(self.stream.take().unwrap()).split();
 
         let read_handle: JoinHandle<Result<(), TockloaderError>> = tokio::spawn(async move {
-            // TODO: I don't get why the decoder returns Result<Option<String>, ...> but
+            // Q: I don't get why the decoder returns Result<Option<String>, ...> but
             // line_result is actually Result<String, ...>.
-            // What does it mean if .next() return None?
+            // A: Because the decoded uses Ok(None) as an indicator that it needs to wait for
+            // more bytes, where we will always have a result (even if it happens to be an
+            // empty string).
+            // TODO: What does it mean if .next() return None?
             while let Some(line_result) = reader.next().await {
                 print!("{}", line_result?);
 
@@ -50,6 +55,12 @@ impl VirtualTerminal for SerialInterface {
                 }
             }
         });
+
+        // TODO: Make this work.
+        // Currently both reader and writer are moved into their async closures, thus
+        // we lose access to them here. We can't provide the closures a reference since
+        // that reference will then need to have a static lifetime.
+        // self.stream = Some(reader.reunite(writer).unwrap().into_inner());
 
         tokio::select! {
             join_result = read_handle => {
@@ -115,8 +126,11 @@ impl Decoder for TerminalCodec {
                 let index = error.valid_up_to();
 
                 if index == 0 {
-                    // Returning Some("") makes it so no other bytes are read in. I have no idea why.
+                    // Q: Returning Some("") makes it so no other bytes are read in. I have no idea why.
                     // If you find a reason why, please edit this comment.
+                    // A: By looking at the documentaion of the 'decode' method, Ok(None) signals
+                    // that we need to read more bytes. Otherwise, returning Some("") would call
+                    // 'decode' again until Ok(None) is returned.
                     return Ok(None);
                 }
 
