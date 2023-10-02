@@ -13,6 +13,7 @@ use std::sync::Arc;
 use std::{io, str};
 use tokio_util::codec::{Decoder, Encoder};
 
+#[derive(Debug)]
 struct TerminalCodec;
 
 #[async_trait]
@@ -52,11 +53,15 @@ impl VirtualTerminal for SerialInterface {
 
         let writer_arc = Arc::new(tokio::sync::Mutex::new(writer));
         let write_handle: JoinHandle<Result<(), TockloaderError>> = tokio::spawn({
-            let writer_arc = Arc::clone(&writer_arc);
+            let writer_arc = Arc::downgrade(&writer_arc);
             async move {
                 loop {
                     if let Some(buffer) = get_key().await? {
-                        writer_arc.lock().await.send(buffer).await?
+                        if let Some(writer) = writer_arc.upgrade() {
+                            writer.lock().await.send(buffer).await?
+                        } else {
+                            return Ok(());
+                        }
                     }
                 }
             }

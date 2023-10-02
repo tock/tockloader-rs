@@ -9,7 +9,7 @@ use interfaces::{build_interface, traits::*};
 async fn main() -> Result<(), TockloaderError> {
     let result = run().await;
     if let Err(e) = &result {
-        eprintln!("{}", e);
+        eprintln!("\n{}", e);
     }
 
     result
