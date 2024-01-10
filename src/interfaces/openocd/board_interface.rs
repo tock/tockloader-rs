@@ -1,8 +1,8 @@
 use crate::errors::TockloaderError;
-use crate::interfaces::traits::BoardInterface;
-use crate::interfaces::OpenOCDInterface;
+use crate::interfaces::traits::BoardChannel;
+use crate::interfaces::OpenOCDChannel;
 
-impl BoardInterface for OpenOCDInterface {
+impl BoardChannel for OpenOCDChannel {
     fn open(&mut self) -> Result<(), TockloaderError> {
         todo!()
     }

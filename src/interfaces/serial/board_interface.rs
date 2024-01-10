@@ -1,8 +1,8 @@
 use crate::errors::TockloaderError;
-use crate::interfaces::traits::BoardInterface;
-use crate::interfaces::SerialInterface;
+use crate::interfaces::traits::BoardChannel;
+use crate::interfaces::SerialChannel;
 
-impl BoardInterface for SerialInterface {
+impl BoardChannel for SerialChannel {
     fn open(&mut self) -> Result<(), TockloaderError> {
         todo!()
     }

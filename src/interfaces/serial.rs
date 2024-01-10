@@ -1,4 +1,3 @@
 pub mod board_interface;
-pub mod bytes_reader;
 
-pub struct SerialInterface {}
+pub struct SerialChannel {}

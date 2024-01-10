@@ -1,8 +1,8 @@
 use crate::errors::TockloaderError;
-use crate::interfaces::traits::BoardInterface;
-use crate::interfaces::JLinkInterface;
+use crate::interfaces::traits::BoardChannel;
+use crate::interfaces::JLinkChannel;
 
-impl BoardInterface for JLinkInterface {
+impl BoardChannel for JLinkChannel {
     fn open(&mut self) -> Result<(), TockloaderError> {
         todo!()
     }
