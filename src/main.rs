@@ -1,4 +1,6 @@
+mod channels;
 mod cli;
+mod errors;
 use cli::make_cli;
 
 fn main() {
