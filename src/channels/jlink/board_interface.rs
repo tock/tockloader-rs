@@ -1,6 +1,6 @@
+use crate::channels::traits::BoardChannel;
+use crate::channels::JLinkChannel;
 use crate::errors::TockloaderError;
-use crate::interfaces::traits::BoardChannel;
-use crate::interfaces::JLinkChannel;
 
 impl BoardChannel for JLinkChannel {
     fn open(&mut self) -> Result<(), TockloaderError> {
